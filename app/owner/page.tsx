@@ -225,6 +225,117 @@ function AddVenueSheet({ onCreated }: { onCreated: () => void }) {
   )
 }
 
+function AddFacilitySheet({ venueId, defaultSport, onCreated }: { venueId: string; defaultSport?: string; onCreated: () => void }) {
+  const [open, setOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState("")
+  const [name, setName] = useState("")
+  const [type, setType] = useState(defaultSport && SPORTS_OPTIONS.includes(defaultSport) ? defaultSport : "football")
+  const [price, setPrice] = useState("")
+  const [capacity, setCapacity] = useState("10")
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError("")
+    if (!name.trim()) {
+      setError("Facility name is required")
+      return
+    }
+    if (!price || Number(price) <= 0) {
+      setError("Enter a valid facility price")
+      return
+    }
+
+    setIsLoading(true)
+    try {
+      const res = await fetch(`/api/venues/${venueId}/facilities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          type,
+          price: Number(price),
+          capacity: Number(capacity || 10),
+          equipmentIncluded: false,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Failed to add facility")
+        return
+      }
+
+      setOpen(false)
+      setName("")
+      setPrice("")
+      setCapacity("10")
+      onCreated()
+    } catch {
+      setError("Something went wrong. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={setOpen}>
+      <SheetTrigger asChild>
+        <Button variant="outline" size="sm">Add Facility</Button>
+      </SheetTrigger>
+      <SheetContent side="bottom" className="h-[72dvh] overflow-y-auto rounded-t-2xl pb-10">
+        <SheetHeader className="pb-4">
+          <SheetTitle>Add Facility</SheetTitle>
+        </SheetHeader>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {error && (
+            <div className="flex items-center gap-2 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-1.5">
+            <Label htmlFor="facility-name">Facility Name</Label>
+            <Input id="facility-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Football Pitch A" required />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Sport Type</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {SPORTS_OPTIONS.map((sport) => (
+                <button
+                  key={sport}
+                  type="button"
+                  onClick={() => setType(sport)}
+                  className={`rounded-md border px-3 py-2 text-sm ${type === sport ? "bg-primary text-primary-foreground border-primary" : "hover:bg-muted/50"}`}
+                >
+                  {SPORT_LABELS[sport]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="facility-price">Price / hour (EGP)</Label>
+              <Input id="facility-price" type="number" min={1} value={price} onChange={(e) => setPrice(e.target.value)} required />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="facility-capacity">Capacity</Label>
+              <Input id="facility-capacity" type="number" min={1} max={200} value={capacity} onChange={(e) => setCapacity(e.target.value)} required />
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Saving...</> : "Save Facility"}
+          </Button>
+        </form>
+      </SheetContent>
+    </Sheet>
+  )
+}
+
 /* â”€â”€â”€ Status badge helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, string> = {
@@ -513,8 +624,11 @@ function OwnerPortalInner() {
                           <span className="text-xs text-muted-foreground">+{venue.sports.length - 2}</span>
                         )}
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {venue.totalBookings} booking{venue.totalBookings !== 1 ? "s" : ""}
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-muted-foreground">
+                          {venue.facilities?.length ?? 0} facilit{(venue.facilities?.length ?? 0) === 1 ? "y" : "ies"}
+                        </div>
+                        <AddFacilitySheet venueId={venue.id} defaultSport={venue.sports?.[0]} onCreated={fetchData} />
                       </div>
                     </div>
                   </CardContent>

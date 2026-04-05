@@ -98,17 +98,41 @@ export async function POST(request: NextRequest) {
 
     if (venueError) return errorResponse(venueError.message, 500)
 
-    // If facilities were provided, insert them too
-    if (facilities.length > 0) {
-      const facilityRows = (facilities as Array<{ name: string; type: string; price?: number }>).map((f) => ({
-        venue_id: venue.id,
-        name: f.name,
-        type: f.type,
-        price: f.price ?? Number(price),
-        available: true,
-      }))
-      await supabase.from("facilities").insert(facilityRows)
-    }
+    // Always ensure at least one facility exists so venue is immediately bookable.
+    const requestedFacilities = facilities as Array<{
+      name?: string
+      type?: string
+      description?: string
+      capacity?: number
+      price?: number
+    }>
+
+    const fallbackSport = String(sports[0] ?? "football")
+    const facilityRows =
+      requestedFacilities.length > 0
+        ? requestedFacilities.map((f, index) => ({
+            venue_id: venue.id,
+            name: f.name?.trim() || `${fallbackSport.charAt(0).toUpperCase() + fallbackSport.slice(1)} Facility ${index + 1}`,
+            type: f.type || fallbackSport,
+            description: f.description?.trim() || null,
+            capacity: Number(f.capacity ?? 10),
+            price: Number(f.price ?? Number(price)),
+            available: true,
+          }))
+        : [
+            {
+              venue_id: venue.id,
+              name: `${fallbackSport.charAt(0).toUpperCase() + fallbackSport.slice(1)} Main Facility`,
+              type: fallbackSport,
+              description: null,
+              capacity: 10,
+              price: Number(price),
+              available: true,
+            },
+          ]
+
+    const { error: facilityInsertError } = await supabase.from("facilities").insert(facilityRows)
+    if (facilityInsertError) return errorResponse(facilityInsertError.message, 500)
 
     return successResponse(venue, 201)
   } catch {

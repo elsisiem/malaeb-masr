@@ -80,6 +80,9 @@ export default function BookingPage({ params }: { params: { id: string } }) {
   const [savePayment, setSavePayment] = useState(false)
   const [invitedPlayers, setInvitedPlayers] = useState<string[]>([])
 
+  const selectedFacilityData =
+    selectedFacility ?? venue?.facilities?.find((facility) => facility.id === facilityId) ?? venue?.facilities?.[0] ?? null
+
   useEffect(() => {
     setIsLoading(true)
     fetch(`/api/venues/${params.id}`)
@@ -169,7 +172,14 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         })
         return
       }
-      if (!selectedFacility) return
+      if (!selectedFacilityData) {
+        toast({
+          title: "Facility not selected",
+          description: "Please go back and choose a facility before confirming the booking.",
+          variant: "destructive",
+        })
+        return
+      }
 
       setIsConfirming(true)
       try {
@@ -188,9 +198,7 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         let [h, m] = timePart.split(":").map(Number)
         if (period === "PM" && h !== 12) h += 12
         if (period === "AM" && h === 12) h = 0
-        const endH = (h + duration) % 24
         const startTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
-        const endTime = `${endH.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`
 
         const total = calculateTotal()
 
@@ -199,14 +207,15 @@ export default function BookingPage({ params }: { params: { id: string } }) {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            venue_id: venue!.id,
-            facility_id: selectedFacility.id,
+            venueId: venue!.id,
+            facilityId: selectedFacilityData.id,
             date: dateStr,
-            start_time: startTime,
-            end_time: endTime,
+            startTime,
             duration,
-            player_count: playerCount,
-            price: total,
+            playerCount,
+            equipmentSelected: equipment,
+            notes: invitedPlayers.length > 0 ? `Invited players: ${invitedPlayers.join(", ")}` : undefined,
+            paymentMethod,
           }),
         })
         const bookingJson = await bookingRes.json()
@@ -215,13 +224,21 @@ export default function BookingPage({ params }: { params: { id: string } }) {
           return
         }
 
-        const bookingId = bookingJson.data?.booking?.id
+        const bookingId = bookingJson.data?.id
+        if (!bookingId) {
+          toast({
+            title: "Booking failed",
+            description: "The booking could not be created. Please try again.",
+            variant: "destructive",
+          })
+          return
+        }
 
         // 2. Initiate payment
         const payRes = await fetch("/api/payments/initiate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ booking_id: bookingId, amount: total }),
+          body: JSON.stringify({ bookingId }),
         })
         const payJson = await payRes.json()
 
@@ -231,7 +248,7 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         })
 
         // Redirect to bookings; if Stripe client_secret is returned, handle it here later
-        if (payJson.data?.client_secret) {
+        if (payJson.data?.clientSecret) {
           // Payment initiated — in production, redirect to payment page or use Stripe Elements
           router.push("/bookings")
         } else {
@@ -247,9 +264,9 @@ export default function BookingPage({ params }: { params: { id: string } }) {
   }
 
   const calculateTotal = () => {
-    if (!selectedFacility) return 0
+    if (!selectedFacilityData) return 0
 
-    let total = selectedFacility.price * duration
+    let total = selectedFacilityData.price * duration
 
     // Add equipment costs
     if (equipment.football) total += 50
@@ -311,14 +328,14 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         </div>
 
         {/* Venue Info */}
-        {selectedFacility && (
+        {selectedFacilityData ? (
           <Card className="hover:shadow-md transition-all">
             <CardContent className="p-4">
               <div className="flex items-start gap-4">
                 <div className="relative h-20 w-20 rounded-md overflow-hidden flex-shrink-0">
                   <ImageWithFallback
-                    src={selectedFacility.image || "/placeholder.svg?height=200&width=200"}
-                    alt={selectedFacility.name}
+                    src={selectedFacilityData.image || "/placeholder.svg?height=200&width=200"}
+                    alt={selectedFacilityData.name}
                     fill
                     className="object-cover"
                   />
@@ -330,16 +347,22 @@ export default function BookingPage({ params }: { params: { id: string } }) {
                       Available
                     </Badge>
                   </div>
-                  <p className="text-sm text-muted-foreground">{selectedFacility.name}</p>
+                  <p className="text-sm text-muted-foreground">{selectedFacilityData.name}</p>
                   <div className="flex items-center mt-2 text-sm">
                     <MapPin className="h-3 w-3 mr-1" />
                     <span>{venue.location}</span>
                   </div>
                   <div className="font-semibold mt-1">
-                    EGP {selectedFacility.price} <span className="text-xs text-muted-foreground">/ hour</span>
+                    EGP {selectedFacilityData.price} <span className="text-xs text-muted-foreground">/ hour</span>
                   </div>
                 </div>
               </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-dashed">
+            <CardContent className="p-4 text-sm text-muted-foreground">
+              No facility has been selected for this booking. Return to the venue page and choose a facility first.
             </CardContent>
           </Card>
         )}
@@ -402,151 +425,160 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         )}
 
         {/* Step 2: Player Details */}
-        {step === 2 && selectedFacility && (
+        {step === 2 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Player Details</h2>
 
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-medium mb-2">Number of Players</h3>
-                <div className="flex items-center justify-between">
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setPlayerCount(Math.max(1, playerCount - 1))}
-                    disabled={playerCount <= 1}
-                  >
-                    <Minus className="h-4 w-4" />
-                  </Button>
-                  <span className="text-xl font-semibold">{playerCount}</span>
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setPlayerCount(Math.min(selectedFacility.capacity, playerCount + 1))}
-                    disabled={playerCount >= selectedFacility.capacity}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                </div>
-                <div className="text-xs text-muted-foreground text-center mt-1">
-                  Maximum capacity: {selectedFacility.capacity} players
-                </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium mb-2">Invite Team Members</h3>
-                <Dialog>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" className="w-full">
-                      <Users className="h-4 w-4 mr-2" />
-                      Invite Players {invitedPlayers.length > 0 && `(${invitedPlayers.length})`}
+            {selectedFacilityData ? (
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Number of Players</h3>
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setPlayerCount(Math.max(1, playerCount - 1))}
+                      disabled={playerCount <= 1}
+                    >
+                      <Minus className="h-4 w-4" />
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Invite Players</DialogTitle>
-                      <DialogDescription>
-                        Select team members or invite new players to join this booking.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="search-players">Search Players</Label>
-                        <Input id="search-players" placeholder="Search by name or email" />
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label>Team Members</Label>
-                        <div className="space-y-2">
-                          {["Ahmed K.", "Mohamed S.", "Omar T.", "Khaled M."].map((player, index) => (
-                            <div key={index} className="flex items-center space-x-2">
-                              <Checkbox
-                                id={`player-${index}`}
-                                checked={invitedPlayers.includes(player)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    handleInvitePlayer(player)
-                                  } else {
-                                    setInvitedPlayers(invitedPlayers.filter((p) => p !== player))
-                                  }
-                                }}
-                              />
-                              <Label htmlFor={`player-${index}`} className="font-normal">
-                                {player}
-                              </Label>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="new-player">Invite New Player</Label>
-                        <div className="flex gap-2">
-                          <Input id="new-player" placeholder="Email or phone number" />
-                          <Button size="sm">
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button type="submit">Invite Selected</Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-medium mb-2">Equipment Rental</h3>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center">
-                      <SportEmoji sport="football" className="mr-2" />
-                      <span>Football</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">EGP 50</span>
-                      <Checkbox
-                        id="football"
-                        checked={equipment.football}
-                        onCheckedChange={(checked) => setEquipment({ ...equipment, football: checked as boolean })}
-                      />
-                    </div>
+                    <span className="text-xl font-semibold">{playerCount}</span>
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      onClick={() => setPlayerCount(Math.min(selectedFacilityData.capacity, playerCount + 1))}
+                      disabled={playerCount >= selectedFacilityData.capacity}
+                    >
+                      <Plus className="h-4 w-4" />
+                    </Button>
                   </div>
+                  <div className="text-xs text-muted-foreground text-center mt-1">
+                    Maximum capacity: {selectedFacilityData.capacity} players
+                  </div>
+                </div>
 
-                  <div className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center">
-                      <Shirt className="h-4 w-4 mr-2" />
-                      <span>Bibs (10 pcs)</span>
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Invite Team Members</h3>
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" className="w-full">
+                        <Users className="h-4 w-4 mr-2" />
+                        Invite Players {invitedPlayers.length > 0 && `(${invitedPlayers.length})`}
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Invite Players</DialogTitle>
+                        <DialogDescription>
+                          Select team members or invite new players to join this booking.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4 py-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="search-players">Search Players</Label>
+                          <Input id="search-players" placeholder="Search by name or email" />
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label>Team Members</Label>
+                          <div className="space-y-2">
+                            {["Ahmed K.", "Mohamed S.", "Omar T.", "Khaled M."].map((player, index) => (
+                              <div key={index} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`player-${index}`}
+                                  checked={invitedPlayers.includes(player)}
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      handleInvitePlayer(player)
+                                    } else {
+                                      setInvitedPlayers(invitedPlayers.filter((p) => p !== player))
+                                    }
+                                  }}
+                                />
+                                <Label htmlFor={`player-${index}`} className="font-normal">
+                                  {player}
+                                </Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2">
+                          <Label htmlFor="new-player">Invite New Player</Label>
+                          <div className="flex gap-2">
+                            <Input id="new-player" placeholder="Email or phone number" />
+                            <Button size="sm">
+                              <Plus className="h-4 w-4 mr-1" />
+                              Add
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button type="submit">Invite Selected</Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-medium mb-2">Equipment Rental</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center">
+                        <SportEmoji sport="football" className="mr-2" />
+                        <span>Football</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">EGP 50</span>
+                        <Checkbox
+                          id="football"
+                          checked={equipment.football}
+                          onCheckedChange={(checked) => setEquipment({ ...equipment, football: checked as boolean })}
+                        />
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm">EGP 30</span>
-                      <Checkbox
-                        id="bibs"
-                        checked={equipment.bibs}
-                        onCheckedChange={(checked) => setEquipment({ ...equipment, bibs: checked as boolean })}
-                      />
+
+                    <div className="flex items-center justify-between p-3 border rounded-md hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center">
+                        <Shirt className="h-4 w-4 mr-2" />
+                        <span>Bibs (10 pcs)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">EGP 30</span>
+                        <Checkbox
+                          id="bibs"
+                          checked={equipment.bibs}
+                          onCheckedChange={(checked) => setEquipment({ ...equipment, bibs: checked as boolean })}
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
 
-              <div className="pt-4">
-                <Button className="w-full" onClick={handleNext}>
-                  Continue to Payment
-                </Button>
+                <div className="pt-4">
+                  <Button className="w-full" onClick={handleNext}>
+                    Continue to Payment
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="p-4 text-sm text-muted-foreground">
+                  No facility is selected yet. Return to the venue page and choose a facility to continue.
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
 
         {/* Step 3: Payment */}
-        {step === 3 && selectedFacility && (
+        {step === 3 && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold">Payment</h2>
 
-            <div className="space-y-4">
+            {selectedFacilityData ? (
+              <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-medium mb-2">Payment Method</h3>
                 <div className="space-y-2">
@@ -622,11 +654,9 @@ export default function BookingPage({ params }: { params: { id: string } }) {
                     <div className="flex items-center justify-between">
                       <div className="flex items-center text-sm">
                         <Calendar className="h-3 w-3 mr-1" />
-                        <span>
-                          {selectedDate}, {selectedTime} - {duration} hour{duration > 1 ? "s" : ""}
-                        </span>
+                        <span>{selectedDate}, {selectedTime} - {duration} hour{duration > 1 ? "s" : ""}</span>
                       </div>
-                      <span className="font-medium">EGP {selectedFacility.price * duration}</span>
+                      <span className="font-medium">EGP {selectedFacilityData.price * duration}</span>
                     </div>
 
                     <div className="flex items-center justify-between">
@@ -697,7 +727,14 @@ export default function BookingPage({ params }: { params: { id: string } }) {
                   </div>
                 )}
               </div>
-            </div>
+              </div>
+            ) : (
+              <Card className="border-dashed">
+                <CardContent className="p-4 text-sm text-muted-foreground">
+                  No facility is selected yet. Return to the venue page and choose a facility to continue.
+                </CardContent>
+              </Card>
+            )}
           </div>
         )}
       </main>

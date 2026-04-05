@@ -54,7 +54,7 @@ export default function DashboardPage() {
       try {
         const [meRes, bookingsRes, venuesRes] = await Promise.all([
           fetch("/api/auth/me"),
-          fetch("/api/bookings?status=confirmed&limit=1"),
+          fetch("/api/bookings?status=upcoming&pageSize=1"),
           fetch("/api/venues?limit=4"),
         ])
         if (meRes.ok) {

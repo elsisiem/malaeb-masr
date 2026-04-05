@@ -109,7 +109,7 @@ function BookingCard({
 
 async function fetchBookings(status: string): Promise<ApiBooking[]> {
   try {
-    const res = await fetch(`/api/bookings?status=${status}`)
+    const res = await fetch(`/api/bookings?status=${status}&pageSize=50`)
     if (!res.ok) return []
     const json = await res.json()
     return json.data?.bookings ?? []

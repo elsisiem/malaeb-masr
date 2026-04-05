@@ -3,10 +3,32 @@ import { createClient } from "@/lib/supabase/server"
 import { getAuthUser, successResponse, errorResponse } from "@/lib/api-helpers"
 import { createBookingSchema } from "@/lib/validations/booking"
 
+const SEMANTIC_STATUSES = ["upcoming", "past", "canceled"] as const
+const BOOKING_STATUSES = ["upcoming", "past", "canceled", "pending", "confirmed"] as const
+
+type BookingStatus = (typeof BOOKING_STATUSES)[number]
+type BookingBucket = (typeof SEMANTIC_STATUSES)[number]
+
+function getBookingBucket(booking: { status: string; date: string; start_time: string }): BookingBucket {
+  if (booking.status === "canceled") return "canceled"
+  if (booking.status === "past") return "past"
+
+  const bookingDateTime = new Date(`${booking.date}T${booking.start_time}`)
+  if (Number.isNaN(bookingDateTime.getTime())) {
+    return booking.status === "canceled" ? "canceled" : "upcoming"
+  }
+
+  return bookingDateTime.getTime() < Date.now() ? "past" : "upcoming"
+}
+
 /**
  * GET /api/bookings
  * Returns the authenticated user's bookings.
- * Query: status=upcoming|past|canceled, page, pageSize
+ * Query: status=upcoming|past|canceled|pending|confirmed, page, pageSize
+ *
+ * The semantic buckets (upcoming/past/canceled) are derived from the booking
+ * date/time so the player UI stays in sync even when the stored status is still
+ * pending or confirmed.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -34,15 +56,31 @@ export async function GET(request: NextRequest) {
         { count: "exact" },
       )
       .eq("user_id", user.id)
-      .range(from, to)
       .order("date", { ascending: false })
       .order("start_time", { ascending: false })
 
-    const VALID_STATUSES = ["upcoming", "past", "canceled", "pending", "confirmed"] as const
-    type BookingStatus = typeof VALID_STATUSES[number]
-    if (status && VALID_STATUSES.includes(status as BookingStatus)) {
-      query = query.eq("status", status as BookingStatus)
+    const requestedStatus = status as BookingStatus | null
+    const isSemanticStatus = requestedStatus ? SEMANTIC_STATUSES.includes(requestedStatus as BookingBucket) : false
+
+    if (requestedStatus && BOOKING_STATUSES.includes(requestedStatus)) {
+      if (isSemanticStatus) {
+        const { data, error } = await query
+
+        if (error) return errorResponse(error.message, 500)
+
+        const filtered = (data ?? []).filter((booking) => getBookingBucket(booking) === requestedStatus)
+        const paginated = filtered.slice(from, to + 1)
+
+        return successResponse({
+          bookings: paginated,
+          pagination: { page, pageSize, total: filtered.length },
+        })
+      }
+
+      query = query.eq("status", requestedStatus)
     }
+
+    query = query.range(from, to)
 
     const { data, error, count } = await query
 

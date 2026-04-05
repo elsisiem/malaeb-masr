@@ -44,7 +44,23 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
       isFavorited = !!fav
     }
 
-    return successResponse({ ...data, isFavorited })
+    const venueData = data as unknown as Record<string, unknown> & {
+      facilities?: Array<Record<string, unknown>>
+      price?: number
+    }
+
+    const normalizedFacilities = (venueData.facilities ?? []).map((facility) => ({
+      ...facility,
+      is_available: (facility as { available?: boolean }).available ?? true,
+      image: (facility as { image?: string | null }).image ?? "",
+    }))
+
+    return successResponse({
+      ...venueData,
+      price_per_hour: venueData.price ?? 0,
+      facilities: normalizedFacilities,
+      isFavorited,
+    })
   } catch {
     return errorResponse("Internal server error", 500)
   }

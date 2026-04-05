@@ -80,6 +80,8 @@ export default function BookingPage({ params }: { params: { id: string } }) {
   const [savePayment, setSavePayment] = useState(false)
   const [invitedPlayers, setInvitedPlayers] = useState<string[]>([])
 
+  const hasFacilities = (venue?.facilities?.length ?? 0) > 0
+
   const selectedFacilityData =
     selectedFacility ?? venue?.facilities?.find((facility) => facility.id === facilityId) ?? venue?.facilities?.[0] ?? null
 
@@ -174,8 +176,8 @@ export default function BookingPage({ params }: { params: { id: string } }) {
       }
       if (!selectedFacilityData) {
         toast({
-          title: "Facility not selected",
-          description: "Please go back and choose a facility before confirming the booking.",
+          title: "Facility not available",
+          description: "This venue currently has no bookable facilities.",
           variant: "destructive",
         })
         return
@@ -362,7 +364,7 @@ export default function BookingPage({ params }: { params: { id: string } }) {
         ) : (
           <Card className="border-dashed">
             <CardContent className="p-4 text-sm text-muted-foreground">
-              No facility has been selected for this booking. Return to the venue page and choose a facility first.
+              This venue has no bookable facilities yet. Please choose another venue or ask the owner to add facilities.
             </CardContent>
           </Card>
         )}
@@ -432,6 +434,33 @@ export default function BookingPage({ params }: { params: { id: string } }) {
             {selectedFacilityData ? (
               <div className="space-y-4">
                 <div>
+                  {hasFacilities && (venue?.facilities?.length ?? 0) > 1 && (
+                    <div className="mb-4">
+                      <h3 className="text-sm font-medium mb-2">Facility</h3>
+                      <div className="grid gap-2">
+                        {(venue?.facilities ?? []).map((facility) => {
+                          const isSelected = selectedFacilityData?.id === facility.id
+                          return (
+                            <button
+                              key={facility.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedFacility(facility)
+                                setPlayerCount((prev) => Math.min(facility.capacity, prev))
+                              }}
+                              className={`text-left rounded-md border px-3 py-2 transition-colors ${
+                                isSelected ? "border-primary bg-primary/10" : "hover:bg-muted/50"
+                              }`}
+                            >
+                              <div className="text-sm font-medium">{facility.name}</div>
+                              <div className="text-xs text-muted-foreground">EGP {facility.price} / hour</div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <h3 className="text-sm font-medium mb-2">Number of Players</h3>
                   <div className="flex items-center justify-between">
                     <Button
@@ -565,7 +594,7 @@ export default function BookingPage({ params }: { params: { id: string } }) {
             ) : (
               <Card className="border-dashed">
                 <CardContent className="p-4 text-sm text-muted-foreground">
-                  No facility is selected yet. Return to the venue page and choose a facility to continue.
+                  This venue has no bookable facilities yet. Please choose another venue.
                 </CardContent>
               </Card>
             )}
@@ -731,7 +760,7 @@ export default function BookingPage({ params }: { params: { id: string } }) {
             ) : (
               <Card className="border-dashed">
                 <CardContent className="p-4 text-sm text-muted-foreground">
-                  No facility is selected yet. Return to the venue page and choose a facility to continue.
+                  This venue has no bookable facilities yet. Please choose another venue.
                 </CardContent>
               </Card>
             )}

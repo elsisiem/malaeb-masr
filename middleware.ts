@@ -48,6 +48,19 @@ export async function middleware(request: NextRequest) {
   const isProtected = PROTECTED_ROUTES.some((route) => pathname.startsWith(route))
   const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route))
 
+  let profileRole: "player" | "owner" | "admin" | null = null
+  const resolveRole = async () => {
+    if (!user || user.is_anonymous) return null
+    if (profileRole) return profileRole
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+    profileRole = (profile?.role as "player" | "owner" | "admin" | undefined) ?? null
+    return profileRole
+  }
+
   // Allow both real users AND anonymous (guest) Supabase users through protected routes
   if (isProtected && !user) {
     const loginUrl = new URL("/auth/login", request.url)
@@ -57,14 +70,23 @@ export async function middleware(request: NextRequest) {
 
   // Only redirect away from auth routes if the user has a real (non-anonymous) account
   if (isAuthRoute && user && !user.is_anonymous) {
-    // Check role to route owners to their portal
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-    const destination = profile?.role === "owner" ? "/owner" : "/dashboard"
+    const role = await resolveRole()
+    const destination = role === "owner" || role === "admin" ? "/owner" : "/dashboard"
     return NextResponse.redirect(new URL(destination, request.url))
+  }
+
+  // Keep owner and player surfaces isolated to prevent cross-view leaks.
+  if (user && !user.is_anonymous) {
+    const role = await resolveRole()
+    const isOwner = role === "owner" || role === "admin"
+
+    if (pathname.startsWith("/owner") && !isOwner) {
+      return NextResponse.redirect(new URL("/dashboard", request.url))
+    }
+
+    if (pathname === "/dashboard" && isOwner) {
+      return NextResponse.redirect(new URL("/owner", request.url))
+    }
   }
 
   return response

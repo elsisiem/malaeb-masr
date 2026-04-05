@@ -50,10 +50,18 @@ export async function GET(request: NextRequest) {
     if (error) return errorResponse(error.message, 500)
 
     // Filter by price range on the JS side (based on cheapest facility)
-    let venues = data ?? []
+    let venues = (data ?? []).map((venue) => {
+      const facilityList = ((venue as unknown as { facilities?: Array<{ price: number }> }).facilities ?? [])
+      const derivedPrice = facilityList.length > 0 ? Math.min(...facilityList.map((facility) => facility.price)) : 0
+      return {
+        ...(venue as Record<string, unknown>),
+        facilities: facilityList,
+        price: derivedPrice,
+      }
+    })
     if (minPrice !== undefined || maxPrice !== undefined) {
       venues = venues.filter((v) => {
-        const prices = ((v.facilities as unknown) as Array<{ price: number }>).map((f) => f.price)
+        const prices = ((v as { facilities?: Array<{ price: number }> }).facilities ?? []).map((f) => f.price)
         if (prices.length === 0) return true
         const minFacilityPrice = Math.min(...prices)
         if (minPrice !== undefined && minFacilityPrice < minPrice) return false

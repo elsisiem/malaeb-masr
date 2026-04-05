@@ -16,7 +16,7 @@ const PLAYER_NAV_ITEMS = [
 ]
 
 const OWNER_NAV_ITEMS = [
-  { href: "/dashboard", icon: Home, label: "Home" },
+  { href: "/owner?tab=dashboard", icon: Home, label: "Home" },
   { href: "/owner", icon: LayoutDashboard, label: "Dashboard" },
   { href: "/owner?tab=venues", icon: Building2, label: "Venues" },
   { href: "/owner?tab=analytics", icon: BarChart3, label: "Analytics" },

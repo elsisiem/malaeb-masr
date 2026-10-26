@@ -123,7 +123,7 @@ export default function WelcomePage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-60" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
             </span>
-            Egypt&apos;s #1 Sports Booking App
+            Sports booking for Egypt
           </motion.div>
 
           <h1 className="text-[2.1rem] font-extrabold tracking-tight leading-tight">

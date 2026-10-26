@@ -1,4 +1,5 @@
 import type React from "react"
+import type { Metadata } from "next"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster"
 import { NotificationProvider } from "@/components/notification-provider"
@@ -8,6 +9,11 @@ import { Inter } from "next/font/google"
 
 const inter = Inter({ subsets: ["latin"] })
 import PageTransition from "@/components/animated/page-transition"
+
+export const metadata: Metadata = {
+  title: "Malaeb Masr",
+  description: "Find and book pitches, courts and pools across Egypt.",
+}
 
 export default function RootLayout({
   children,
@@ -30,7 +36,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-export const metadata = {
-      generator: 'v0.app'
-    };

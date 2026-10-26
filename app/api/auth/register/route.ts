@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
     await admin.auth.admin.updateUserById(authData.user.id, { email_confirm: true })
 
     if (phone) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await (admin.from("profiles") as any).update({ phone, role }).eq("id", authData.user.id)
     }
 

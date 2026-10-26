@@ -72,7 +72,6 @@ export async function POST(request: NextRequest) {
     })
 
     // Store Stripe PaymentIntent ID on the booking row so we can look it up later
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await (supabase.from("bookings") as any)
       .update({
         payment_id: paymentIntent.id,

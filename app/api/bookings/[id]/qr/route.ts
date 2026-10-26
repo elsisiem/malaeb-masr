@@ -41,7 +41,6 @@ export async function GET(_request: NextRequest, { params }: { params: { id: str
       verifyUrl: `${process.env.NEXT_PUBLIC_APP_URL}/api/bookings/${booking.id}/verify`,
     })
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(ticketPayload)}&format=png`
 
     // Proxy the QR image so we don't expose the external service URL

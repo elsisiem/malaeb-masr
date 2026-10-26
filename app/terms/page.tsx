@@ -62,7 +62,7 @@ export default function TermsPage() {
         <section className="space-y-2">
           <h2 className="text-lg font-semibold">6. Limitation of Liability</h2>
           <p className="text-sm text-muted-foreground">
-            Malaeb Masr is provided "as is". We are not liable for any indirect, incidental, or consequential damages
+            Malaeb Masr is provided &quot;as is&quot;. We are not liable for any indirect, incidental, or consequential damages
             arising from the use of the platform.
           </p>
         </section>

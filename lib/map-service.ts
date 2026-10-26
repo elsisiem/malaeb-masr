@@ -29,8 +29,10 @@ const cairoCoordinates = {
 // User's current location (mock)
 const userLocation = { lat: 30.0444, lng: 31.2357 }
 
-// Convert venues to map markers
-export function venueToMapMarkers(venues: Venue[]): MapMarker[] {
+// Convert venues to map markers. Only these fields are read, so API venues can be passed too.
+export type MapVenue = Pick<Venue, "id" | "name" | "location" | "district">
+
+export function venueToMapMarkers(venues: MapVenue[]): MapMarker[] {
   return venues.map((venue) => {
     // Extract district from location
     const district = venue.district || venue.location.split(",")[0].trim()

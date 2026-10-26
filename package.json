@@ -1,5 +1,6 @@
 {
-  "name": "my-v0-project",
+  "name": "malaeb-masr",
+  "description": "Book football pitches, courts and pools in Egypt. Players book and pay, owners manage slots and see bookings.",
   "version": "0.1.0",
   "private": true,
   "scripts": {

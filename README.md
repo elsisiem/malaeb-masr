@@ -75,7 +75,7 @@ pnpm dev
 ```
 
 1. Create a Supabase project and open its SQL editor.
-2. Run `supabase/migrations/001_initial_schema.sql`, then `002_venues_patch.sql`, in that order.
+2. Run `supabase/migrations/001_initial_schema.sql`, `002_venues_patch.sql` and `003_lock_profile_role.sql`, in that order.
 3. Fill `.env.local` (see Configuration). Stripe keys come from test mode.
 4. Start the app and open http://localhost:3000.
 5. To receive payment events locally, forward Stripe webhooks to `http://localhost:3000/api/payments/webhook` with the Stripe CLI and use the signing secret it prints.

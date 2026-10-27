@@ -22,7 +22,6 @@ export type SportKey =
   | "gym"
 
 // Cast each icon to a safe element type for JSX
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type SportIconType = (props: any) => React.ReactElement | null
 
 const SPORT_ICONS: Record<string, SportIconType> = {
